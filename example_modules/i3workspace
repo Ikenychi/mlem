@@ -1,0 +1,53 @@
+#!/usr/bin/env sh
+# Dependencies:
+# i3-msg (package: i3-wm or i3-gaps)
+# jq
+
+# IMPORTANT!
+# the variables will be named "$b_i3workspace_<output>",
+# so for example "$b_i3workspace_HDMI_0".
+# get the output names with `xrandr --listmonitors`.
+# '-' will be replaced with '_' in the name.
+
+# the colors for the different workspace states
+export ws_normal="%{B#FF444444-u}"
+export ws_visible="%{B#FF888888}"
+export ws_focused="%{B#FF2F6DEC}"
+export ws_urgent="%{B#FFFF0000}"
+
+# this jq script transforms the output of i3-msg
+# into the full statusbar module text.
+jqexpr='
+group_by(.output) | .[] | [
+"i3workspace_",
+(.[0].output|gsub("-";"_")),
+":",
+env.ws_normal,
+"[",
+"%{A4:i3-msg workspace prev_on_output:}",
+"%{A5:i3-msg workspace next_on_output:}",
+( .[] |
+	"%{A:i3-msg workspace ", .name, ":}",
+	env.ws_normal,
+	if .visible then env.ws_visible else empty end,
+	if .focused then env.ws_focused else empty end,
+	if .urgent then env.ws_urgent else empty end,
+	" ", .name, " %{A}"
+),
+env.ws_normal,
+"%{A4}",
+"%{A5}",
+"]"
+] | add
+'
+
+# update the module once on launch
+i3-msg -t get_workspaces | jq -r "$jqexpr" > "$pipe"
+
+# wait for "workspace" events,
+# which happen when the active workspace changes
+# and update the module on each
+i3-msg -m -t subscribe '["workspace"]' |
+	while read -r line; do
+		i3-msg -t get_workspaces | jq -r "$jqexpr" > "$pipe"
+	done

@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# Dependencies: ping
+
+ping 8.8.8.8 -i 2 -O |
+	while read -r line; do
+		time="${line% answer yet for icmp_seq=*}"
+		time="${time#*time=}"
+		time="${time% ms*}"
+		printf 'ping: ping:%s \n' "$time" > $pipe
+	done

@@ -1,0 +1,44 @@
+#!/usr/bin/env sh
+# Dependencies:
+# pactl (package: libpulse, installed with pulseaudio),
+# pamixer
+# pavucontrol (optional)
+
+# this script waits for lines on `pactl subscribe` in order to idle until something changes,
+# then it gets the current recording and playback volume using pamixer
+# and adds lemonbar interaction decorators (`%{A...}`)
+# so you can click and scroll on the module to
+# change the volume (scroll), mute (click) or open pavucontrol (r-click).
+
+update_volume(){
+	# header
+	printf 'volume: '
+
+	# pavucontrol
+	printf '%s' "%{A3:pavucontrol &>/dev/null &:}"
+
+	# volume
+	printf '%s' "%{A1:pactl set-sink-mute @DEFAULT_SINK@ toggle:}"
+	printf '%s' "%{A4:pactl set-sink-volume @DEFAULT_SINK@ +1%:}"
+	printf '%s' "%{A5:pactl set-sink-volume @DEFAULT_SINK@ -1%:}"
+	printf 'Vol:%s ' "$(pamixer --get-volume-human | sed 's/muted/mute/; s/%/%%/')"
+	printf '%s' "%{A1A4A5}"
+
+	# mic
+	printf '%s' "%{A1:pactl set-source-mute @DEFAULT_SOURCE@ toggle:}"
+	printf '%s' "%{A4:pactl set-source-volume @DEFAULT_SOURCE@ +1%:}"
+	printf '%s' "%{A5:pactl set-source-volume @DEFAULT_SOURCE@ -1%:}"
+	printf 'Mic:%s ' "$(pamixer --default-source --get-volume-human | sed 's/muted/mute/; s/%/%%/')"
+	printf '%s' "%{A1A4A5}"
+
+	# end pavucontrol
+	printf '%s' "%{A3}"
+}
+
+printf '%s\n' "$(update_volume)" > $pipe
+
+pactl subscribe |
+	while read -r line; do
+		printf '%s\n' "$line" | grep -E "sink|source" > /dev/null || continue
+		printf '%s\n' "$(update_volume)" > $pipe
+	done

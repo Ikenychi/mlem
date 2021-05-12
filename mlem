@@ -1,0 +1,58 @@
+#!/usr/bin/env sh
+
+# set the config directory
+export readonly config_dir="$XDG_CONFIG_HOME/mlem"
+cd "$config_dir" || ( printf "could not enter config directory!\n" 1>&2; exit 1 )
+
+# create the named pipe through which modules communicate with mlem.
+pipe="$( mktemp -up "$XDG_RUNTIME_DIR" "mlem.XXXXXXXX" )"
+export readonly pipe
+mkfifo "$pipe" || ( printf "could not create fifo '%s'!\n" "$pipe" 1>&2; exit 1 )
+
+# lay a trap for signals 1 (error), SIGTERM (kill), SIGINT (^C).
+# when triggered it unsets the trap to prevent looping indefinitely,
+# then removes the pipe to prevent them from building up
+# and finally kills all processes in the group. ( aka the modules )
+trap 'trap "exit" 1 TERM INT KILL; rm $pipe; kill 0' 1 TERM INT
+
+# source the config file,
+# as it is just a shell script.
+# it should contain the functions for starting modules
+# and formatting the module output for lemonbar.,
+# as well as set common variables.
+! . config && printf "error loading config!\n" 1>&2 && exit 1
+
+# run the init_modules function,
+# it should be defined in the config
+# and is responsible for starting the modules' background processes
+! init_modules && printf "error starting modules!\n" 1>&2 && exit 1
+
+# main loop
+# continuously read lines from the fifo (at end of loop via redirection)
+# and split each line into block_name and block_value
+# at the first occurrence of ":"
+while IFS=':' read -r block_name block_value; do
+
+	# save the value to the variable "$b_<block_name>"
+	# so it can be accessed by the formatting function
+	export "b_$block_name=$block_value"
+
+	# reload the config every time it is used.
+	# this is convenient while developing new modules
+	# but not necessary for everyday use.
+	. config
+
+	# run formatting function to generate output.
+	# it has to go through another printf to buffer it
+	# so lemonbar receives it in one piece,
+	# otherwise it breaks horribly.
+	printf "%s\n" "$(format_line)"
+
+	# output it to lemonbar
+	# and run its output through sh for click actions
+done <>"$pipe" | lemonbar $lemonbar_options | sh
+
+# kill 0 here as well in case lomonbar exits.
+# this will most likely happen because of killall lemonbar.
+rm "$pipe"
+kill 0

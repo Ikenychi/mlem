@@ -1,0 +1,65 @@
+#!/usr/bin/env sh
+
+# the contents of this variable are used as launch arguments for lemonbar.
+export lemonbar_options='-f mono:21 -o 3 -u 3 -a 30'
+
+# these are optional and not used by mlem directly,
+# but get used in print_block below
+# and may also be of use in module scripts.
+export lemonbar_background='%{B#90333333-u}'
+export lemonbar_block_background='%{B#E0333333U#FF24B3FF+u}'
+
+
+init_modules() {
+
+	# this function is executed once when mlem starts.
+	# it is meant for launching the backround processes
+	# which write to $pipe
+
+	./ping &
+	./volume &
+	watch -n 1 "date '+date: %a %Y-%m-%d %H:%M:%S ' > $pipe" >/dev/null &
+
+	# the i3workspace module is disabled by default.
+	# you need to manually add the monitor names in format_line
+	# and uncomment this line.
+	#./i3workspace &
+
+}
+
+
+print_block() {
+
+	# a small helper function for printing individual blocks,
+	# it is not used by mlem directly, but very useful in format_line.
+	# you can also use printf directly instead.
+
+	printf ' %s%s%s ' "$lemonbar_block_background" "$1" "$lemonbar_background"
+
+}
+
+
+format_line() {
+
+	# this function is executed every time mlem receives input from a module.
+	# its output is passed directly to lemonbar
+
+	# it has access to the module's cached output blocks via $b_<output_name>
+	# where <output_name> is the part before the first ":"
+	# on the line printed to $pipe
+	# it is recommended but not necessary to name outputs the same as the module script.
+
+	printf '%s' "%{S0}%{l}" # first monitor, align left
+
+	# i3workspace module.
+	# uncomment and replace with your monitor name.
+	# "$b_i3workspace_<output_name>".
+	# get the output names with `xrandr --listmonitors`.
+	# '-' will be replaced with '_' in the name.
+	#printf '%s' "$b_i3workspace_HDMI_0"
+
+	printf '%s' "%{S0}%{r}" # first monitor, align right
+	print_block "$b_ping"
+	print_block "$b_volume"
+	print_block "$b_date"
+}
