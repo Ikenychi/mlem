@@ -1,4 +1,4 @@
-# mlem
+# mlem 🦦
 A minimal [lemonbar](https://github.com/lemonboy/bar) manager
 written entirely in a few lines of POSIX shell script.
 
